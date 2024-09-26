@@ -19,7 +19,8 @@ def process_multiple_prices_single_instrument(
     csv_multiple_data_path=arg_not_supplied,
     csv_roll_data_path=arg_not_supplied,
     ADD_TO_CSV=True,
-    save_with_new_suffix=False
+    save_with_new_suffix=False,
+    start_date=None  # Add start date as a parameter
 ):
     if target_instrument_code is arg_not_supplied:
         target_instrument_code = instrument_code
@@ -29,17 +30,21 @@ def process_multiple_prices_single_instrument(
     db_individual_futures_prices = diag_prices.db_futures_contract_price_data
     csv_multiple_prices = csvFuturesMultiplePricesData(csv_multiple_data_path)
 
-    # Retrieve merged prices for the instrument using PySystemTrade function
-    dict_of_futures_contract_prices = db_individual_futures_prices.get_merged_prices_for_instrument(instrument_code)
-    dict_of_futures_contract_closing_prices = dict_of_futures_contract_prices.final_prices()
-
     # Retrieve roll calendar for the instrument from CSV
     roll_calendar = csv_roll_calendars.get_roll_calendar(instrument_code)
 
+    # Filter roll calendar if start_date is provided
+    if start_date:
+        roll_calendar = roll_calendar[roll_calendar.index >= start_date]
+
+    # Retrieve merged prices for the instrument
+    dict_of_futures_contract_prices = db_individual_futures_prices.get_merged_prices_for_instrument(instrument_code)
+    dict_of_futures_contract_closing_prices = dict_of_futures_contract_prices.final_prices()
+
     # Generate multiple prices using PySystemTrade's futuresMultiplePrices
     multiple_prices = futuresMultiplePrices.create_from_raw_data(
-        roll_calendar,  # Pass the roll calendar
-        dict_of_futures_contract_closing_prices  # Pass the contract closing prices
+        roll_calendar,  # Pass the filtered roll calendar
+        dict_of_futures_contract_closing_prices
     )
 
     log.info(f"Generated multiple prices for {instrument_code}")
@@ -120,7 +125,7 @@ if __name__ == "__main__":
     # Paths to your data directories
     csv_multiple_data_path = '/Users/chrishuber/src/lbf/data/futures/multiple_prices_csv'  # Source stale data
     csv_roll_data_path = '/Users/chrishuber/src/lbf/data/huber_futures/roll_calendars_csv'
-    temp_multiple_data_path = '/Users/chrishuber/src/lbf/data/huber_futures/multiple_prices_csv'  # Temporary path
+    temp_multiple_data_path = '/Users/chrishuber/src/lbf/data/futures/multiple_prices_csv'  # Temporary path
     updated_multiple_data_path = '/Users/chrishuber/src/lbf/data/huber_futures/multiple_prices_csv'  # Final output
 
     # Prompt the user for the instrument code
@@ -129,13 +134,18 @@ if __name__ == "__main__":
         print("No instrument code provided. Exiting.")
         exit()
 
+    # Prompt the user for the start date for filtering the roll calendar
+    start_date_input = input("Enter the start date for the roll calendar (YYYY-MM-DD) or press Enter to skip: ").strip()
+    start_date = pd.Timestamp(start_date_input) if start_date_input else None
+
     # Generate new multiple prices for the specified instrument
     process_multiple_prices_single_instrument(
         instrument_code=instrument_code,
         csv_multiple_data_path=csv_multiple_data_path,
         csv_roll_data_path=csv_roll_data_path,
         ADD_TO_CSV=True,
-        save_with_new_suffix=True  # Save with '_new' suffix to avoid overwriting
+        save_with_new_suffix=True,  # Save with '_new' suffix to avoid overwriting
+        start_date=start_date  # Pass the start date to filter the roll calendar
     )
 
     # Splice the new multiple prices onto existing data and save to updated path
