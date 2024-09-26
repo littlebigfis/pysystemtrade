@@ -10,6 +10,7 @@ from sysproduction.interactive_update_capital_manual import (
     interactive_update_capital_manual,
 )
 from sysproduction.interactive_order_stack import interactive_order_stack
+from sysproduction.interactive_manual_check_fx_prices import interactive_manual_check_fx_prices
 
 
 @click.group()
@@ -41,6 +42,11 @@ def hist():
     """Interactive update historical prices"""
     interactive_manual_check_historical_prices()
 
+
+@pst.command(name="f")
+def fx():
+    """Interactive update historical fx prices"""
+    interactive_manual_check_fx_prices()
 
 @pst.command(name="p")
 def cap():
