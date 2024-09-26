@@ -1,63 +1,93 @@
-import os
-from syscore.constants import arg_not_supplied
+"""
+Read and write data from mongodb for 'multiple prices'
+
+"""
+import pandas as pd
 from sysdata.parquet.parquet_access import ParquetAccess
-from syslogging.logger import get_logger
-from sysobjects.adjusted_prices import futuresAdjustedPrices
+from sysdata.futures.multiple_prices import (
+    futuresMultiplePricesData,
+)
 from sysobjects.multiple_prices import futuresMultiplePrices
-from parquetFuturesAdjustedPricesData import parquetFuturesAdjustedPricesData
-from parquetFuturesMultiplePricesData import parquetFuturesMultiplePricesData
+from sysobjects.dict_of_named_futures_per_contract_prices import (
+    list_of_price_column_names,
+    contract_name_from_column_name,
+)
+from syslogging.logger import *
 
-# Initialize ParquetAccess (modify the path as necessary)
-parquet_access = ParquetAccess("/path/to/parquet/folder")
-log = get_logger("ParquetScript")
+MULTIPLE_COLLECTION = "futures_multiple_prices"
 
-def get_instrument_code():
-    """ Prompt the user to enter an instrument code. """
-    instrument_code = input("Please enter the instrument code (e.g., AEX_mini, SPX): ").strip()
-    return instrument_code
 
-def process_adjusted_prices(instrument_code: str):
-    # Initialize parquet adjusted prices object
-    parquet_adj_data = parquetFuturesAdjustedPricesData(parquet_access)
+class parquetFuturesMultiplePricesData(futuresMultiplePricesData):
+    """
+    Class to read / write multiple futures price data to and from arctic
+    """
 
-    # Fetch adjusted prices from Parquet
-    try:
-        adj_prices = parquet_adj_data.get_adjusted_prices(instrument_code)
-        print(f"Adjusted prices data for {instrument_code}: {adj_prices.head()}")
-    except Exception as e:
-        print(f"Error fetching adjusted prices for {instrument_code}: {e}")
-        return
+    def __init__(
+        self,
+        parquet_access: ParquetAccess,
+        log=get_logger("parquetFuturesMultiplePricesData"),
+    ):
+        super().__init__(log=log)
+        self._parquet = parquet_access
 
-    # Optionally, add new adjusted prices back into Parquet
-    try:
-        parquet_adj_data.add_adjusted_prices(instrument_code, adj_prices)
-        print(f"Successfully added adjusted prices for {instrument_code} to Parquet.")
-    except Exception as e:
-        print(f"Error adding adjusted prices for {instrument_code} to Parquet: {e}")
+    def __repr__(self):
+        return "parquetFuturesMultiplePricesData"
 
-def process_multiple_prices(instrument_code: str):
-    # Initialize parquet multiple prices object
-    parquet_mult_data = parquetFuturesMultiplePricesData(parquet_access)
+    @property
+    def parquet(self):
+        return self._parquet
 
-    # Fetch multiple prices from Parquet
-    try:
-        mult_prices = parquet_mult_data.get_multiple_prices(instrument_code)
-        print(f"Multiple prices data for {instrument_code}: {mult_prices.head()}")
-    except Exception as e:
-        print(f"Error fetching multiple prices for {instrument_code}: {e}")
-        return
+    def get_list_of_instruments(self) -> list:
+        return self.parquet.get_all_identifiers_with_data_type(
+            data_type=MULTIPLE_COLLECTION
+        )
 
-    # Optionally, add new multiple prices back into Parquet
-    try:
-        parquet_mult_data.add_multiple_prices(instrument_code, mult_prices)
-        print(f"Successfully added multiple prices for {instrument_code} to Parquet.")
-    except Exception as e:
-        print(f"Error adding multiple prices for {instrument_code} to Parquet: {e}")
+    def _get_multiple_prices_without_checking(
+        self, instrument_code: str
+    ) -> futuresMultiplePrices:
+        data = self.parquet.read_data_given_data_type_and_identifier(
+            data_type=MULTIPLE_COLLECTION, identifier=instrument_code
+        )
 
-if __name__ == "__main__":
-    # Main entry point for processing adjusted and multiple prices
-    instrument_code = get_instrument_code()
+        return futuresMultiplePrices(data)
 
-    # Process both adjusted and multiple prices for the instrument
-    process_adjusted_prices(instrument_code)
-    process_multiple_prices(instrument_code)
+    def _delete_multiple_prices_without_any_warning_be_careful(
+        self, instrument_code: str
+    ):
+        self.parquet.delete_data_given_data_type_and_identifier(
+            data_type=MULTIPLE_COLLECTION, identifier=instrument_code
+        )
+        self.log.debug(
+            "Deleted multiple prices for %s from %s" % (instrument_code, str(self))
+        )
+
+    def _add_multiple_prices_without_checking_for_existing_entry(
+        self, instrument_code: str, multiple_price_data_object: futuresMultiplePrices
+    ):
+        multiple_price_data_aspd = pd.DataFrame(multiple_price_data_object)
+        multiple_price_data_aspd = _change_contracts_to_str(multiple_price_data_aspd)
+
+        self.parquet.write_data_given_data_type_and_identifier(
+            data_type=MULTIPLE_COLLECTION,
+            identifier=instrument_code,
+            data_to_write=multiple_price_data_aspd,
+        )
+        self.log.debug(
+            "Wrote %s lines of prices for %s to %s"
+            % (len(multiple_price_data_aspd), instrument_code, str(self)),
+            instrument_code=instrument_code,
+        )
+
+
+def _change_contracts_to_str(multiple_price_data_aspd):
+    for price_column in list_of_price_column_names:
+        multiple_price_data_aspd[price_column] = multiple_price_data_aspd[
+            price_column
+        ].astype(float)
+
+        contract_column = contract_name_from_column_name(price_column)
+        multiple_price_data_aspd[contract_column] = multiple_price_data_aspd[
+            contract_column
+        ].astype(str)
+
+    return multiple_price_data_aspd
