@@ -6,7 +6,6 @@ from syslogging.logger import *
 
 import pandas as pd
 
-ROLLS_DATAPATH = "data.futures.csvconfig"
 ROLLS_CONFIG_FILE = "rollconfig.csv"
 
 
@@ -69,6 +68,7 @@ class csvRollParametersData(rollParametersData):
         super().__init__(log=log)
         if datapath is arg_not_supplied:
             datapath = ROLLS_DATAPATH
+        config_file = resolve_path_and_filename_for_package(datapath, ROLLS_CONFIG_FILE)
         config_file = resolve_path_and_filename_for_package(datapath, ROLLS_CONFIG_FILE)
 
         self._config_file = config_file

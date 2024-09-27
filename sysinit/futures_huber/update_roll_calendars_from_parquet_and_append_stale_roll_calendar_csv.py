@@ -3,6 +3,10 @@
 # Next it appends that current roll calendar to the stale roll calendar in the roll calendar repo
 # It saves the updated Roll Calendar in the roll calendar path roll calendar repo
 
+
+# THIS SCRIPT HAS A PROBLEM WRITING A ROLL CALENDAR TO THE ROLL CALENDAR CSV REPO IF THERE ARE NO NEW ROLL DATES I.E. WHEAT SINCE THE LAST UPDATE. HAVE TO MANUALLY SAVE THE ROLL UPDATE TO THE REPO
+# SEE IF ROB'S SCRIPT CAN REPLACE THIS ONE
+
 import os
 import pandas as pd
 from sysobjects.rolls import rollParameters

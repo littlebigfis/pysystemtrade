@@ -1,4 +1,4 @@
-# Use this script to bring the roll calendar up to the multiple prices Date_Time
+# Use this script to bring the roll calendar up to the multiple prices Date_Time - already done no need to run again
 # Run this script before Seeding Prices from IB or at least before Update Roll Calendars from Seeded Prices and Append to Stale Roll Calendars"
 
 
